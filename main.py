@@ -1,8 +1,17 @@
 
+from mpl_toolkits import mplot3d
+import csv
+import pandas as pd
 
 import numpy as np
-import csv
+import matplotlib.pyplot as plt
+import numpy as np
+import math
+import matplotlib.pyplot as plot
+import mpl_toolkits.mplot3d.axes3d as axes3d
 
+fig = plt.figure()
+ax = plt.axes(projection='3d')
 height = 184
 # using Anthropometric
 arm_length = int(height*0.48)
@@ -29,9 +38,34 @@ actions = ['up', 'down', 'right', 'left', 'forward', 'backward']
 # q_table = S*a == Q(s,a), S = # of cubes = 2N*2N*N,
 q_table = np.zeros((N*2, N*2, N, len(actions)))
 
+
 # feedback - x,y,z,pop,m1-5
 feedback = np.zeros((N*2, N*2, N, 6))
 
+
+
+def plotModel():
+    """Use contourf to plot cube marginals"""
+    data = np.zeros((N*2, N*2, N))
+    for i in range(0,N*2):
+        for j in range(0,N*2):
+            for k in range(0,N):
+                data[i,j,k] = np.argmax(q_table[i, j, k])
+    x = np.indices(data.shape)[0]
+    y = np.indices(data.shape)[1]
+    z = np.indices(data.shape)[2]
+    col = data.flatten()
+    norm = np.linalg.norm(col)
+    col = col/norm
+    #col = np.linalg.norm(col) - col
+    # 3D Plot
+    fig = plt.figure()
+    ax3D = fig.add_subplot(projection='3d')
+    plt.xlabel("common X")
+    plt.ylabel("common Y")
+    p3d = ax3D.scatter(x, y, z, c=col)
+
+    plt.show()
 
 # open and make new csv file to save algorithm history
 def makeCsvFile():
@@ -69,13 +103,12 @@ def get_reward(row_index, column_index, depth_index):
     movement += feedback[row_index, column_index, depth_index, 2]
     movement += feedback[row_index, column_index, depth_index, 3]
     movement += feedback[row_index, column_index, depth_index, 4]
-    movement += feedback[row_index, column_index, depth_index, 5]
     movement /= 5
+    # didn't pop
     if feedback[row_index,column_index,depth_index, 0] == 0:
-        return 0.2
-    if movement>0.9:
-        return 0.2
-    return 1
+        return 0
+    # pop
+    return 1-movement
 
 
 
@@ -141,16 +174,16 @@ def log(writer, episode, batch, row_index, column_index, depth_index, action_ind
 # get_feedback:
 #       upload feedback from user for each future state from csv file
 def get_feedback(episode):
-    with open('feedback.csv', 'r') as fp:
+    with open('vrsim.csv', 'r') as fp:
         reader = csv.reader(fp)
         for row in list(reader)[1:]:
-            if int(row[0]) == episode:
+            if int(row[0]) == episode%10+1:
                 feedback[int(row[1]), int(row[2]), int(row[3]), 0] = int(row[4])
                 feedback[int(row[1]), int(row[2]), int(row[3]), 1] = float(row[5])
                 feedback[int(row[1]), int(row[2]), int(row[3]), 2] = float(row[6])
                 feedback[int(row[1]), int(row[2]), int(row[3]), 3] = float(row[7])
                 feedback[int(row[1]), int(row[2]), int(row[3]), 4] = float(row[8])
-                feedback[int(row[1]), int(row[2]), int(row[3]), 5] = float(row[9])
+            #   feedback[int(row[1]), int(row[2]), int(row[3]), 5] = float(row[9])
 
 
 """#### Train the AI Agent using Q-Learning"""
@@ -159,17 +192,18 @@ def get_feedback(episode):
 
 discount_factor = 0.9  # discount factor for future rewards
 learning_rate = 1
-epsilon = 0.9
+epsilon = 0.5
 
 def start(writer):
-    # run through 1000 episodes
-    for episode in range(1000):
+    # run through 10 episodes
+    learning_rate = 1
+    for episode in range(1):
         get_feedback(episode)
         # get the starting location for this episode
         row_index, column_index, depth_index = get_starting_location()
 
         # for each episode, we train 100 times:
-        for batch in range(1000):
+        for batch in range(100):
 
             # choose which action to take
             action_index, isRandom = get_next_action(row_index, column_index, depth_index, epsilon)
@@ -193,12 +227,13 @@ def start(writer):
 
 
         # for each episode, learning_rate = learning_rate - learning_rate/10 ????
-        # learning_rate = learning_rate - learning_rate/10
+        learning_rate=learning_rate - learning_rate/10
 
 
 def main():
     writer = makeCsvFile()
     start(writer)
+    plotModel()
 
 if __name__ == "__main__":
     main()
