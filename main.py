@@ -44,8 +44,8 @@ def plotModel():
     y = np.indices(data.shape)[1]
     z = np.indices(data.shape)[2]
     col = data.flatten()
-    # norm = np.linalg.norm(col)
-    # col = col/norm
+    norm = np.linalg.norm(col)
+    col = col/norm
     # col = np.linalg.norm(col) - col
     # 3D Plot
     fig = plt.figure()
@@ -191,10 +191,14 @@ def log(writer, episode, batch, row_index, column_index, depth_index, action_ind
 
 # get_feedback:
 #       upload feedback from user for each future state from csv file
+#todo 7-8-9-10 is like 4-5-6
 def get_feedback(episode):
+    if episode >= 6:
+        episode = 4
     with open('vrsim.csv', 'r') as fp:
         reader = csv.reader(fp)
         for row in list(reader)[1:]:
+
             if int(row[0]) == episode%10+1:
                 feedback[int(row[1]), int(row[2]), int(row[3]), 0] = int(row[4])
                 feedback[int(row[1]), int(row[2]), int(row[3]), 1] = float(row[5])
@@ -210,9 +214,10 @@ def get_feedback(episode):
 
 discount_factor = 1  # discount factor for future rewards
 learning_rate = 0.6
-epsilon = 1
+epsilon = 0.3
 
 def start(writer):
+    global q_table
     # run through 10 episodes
     reward_y = list(range(1, 11))
     episode_x = list(range(1, 11))
@@ -224,7 +229,7 @@ def start(writer):
         # get the starting location for this episode
         row_index, column_index, depth_index = get_starting_location()
         # for each episode, we train 100 times:
-        for batch in range(100):
+        for batch in range(1000):
 
             # # choose which action to take
             # # action_index, isRandom = get_next_action(row_index, column_index, depth_index, epsilon)
