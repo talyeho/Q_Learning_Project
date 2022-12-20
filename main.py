@@ -7,8 +7,8 @@ import numpy as np
 import math
 
 
-fig = plt.figure()
-ax = plt.axes(projection='3d')
+# fig = plt.figure()
+# ax = plt.axes(projection='3d')
 height = 184
 # using Anthropometric
 arm_length = int(height*0.48)
@@ -33,27 +33,50 @@ q_table = np.zeros((N*2, N*2, N, len(actions)))
 feedback = np.zeros((N*2, N*2, N, 6))
 
 
-def plotModel():
+def plotModelArg(header, table, w, h, d):
     """Use contourf to plot cube marginals"""
-    data = np.zeros((N*2, N*2, N))
-    for i in range(0, N*2):
-        for j in range(0, N*2):
-            for k in range(0, N):
-                data[i, j, k] = np.argmax(q_table[i, j, k])
-    x = np.indices(data.shape)[0]
-    y = np.indices(data.shape)[1]
-    z = np.indices(data.shape)[2]
-    col = data.flatten()
+
+    x = np.indices(table.shape)[0]
+    y = np.indices(table.shape)[1]
+    z = np.indices(table.shape)[2]
+    col = table.flatten()
     norm = np.linalg.norm(col)
-    col = col/norm
+    # col = col/norm
     # col = np.linalg.norm(col) - col
     # 3D Plot
     fig = plt.figure()
     ax3D = fig.add_subplot(projection='3d')
     plt.xlabel("common X")
     plt.ylabel("common Y")
-    p3d = ax3D.scatter(x, y, z, c=col)
 
+    plt.title(header)
+    p3d = ax3D.scatter3D(x, y, z, c=col, cmap="rainbow")
+    clb = plt.colorbar(p3d)
+    clb.ax.set_title("Balloon shows")
+    plt.show()
+
+def plotModel():
+    """Use contourf to plot cube marginals"""
+    data = np.zeros((N*2, N*2, N))
+    for i in range(0, N*2):
+        for j in range(0, N*2):
+            for k in range(0, N):
+                data[i, j, k] = q_table[i, j, k, np.argmax(q_table[i, j, k])]
+    x = np.indices(data.shape)[0]
+    y = np.indices(data.shape)[1]
+    z = np.indices(data.shape)[2]
+    col = data.flatten()
+    norm = np.linalg.norm(col)
+    # col = col/norm
+    # col = np.linalg.norm(col) - col
+    # 3D Plot
+    fig = plt.figure()
+    ax3D = fig.add_subplot(projection='3d')
+    plt.xlabel("common X")
+    plt.ylabel("common Y")
+    plt.title("Overall max q-value for each state (cube in space)")
+    p3d = ax3D.scatter3D(x, y, z, c=col, cmap="rainbow")
+    plt.colorbar(p3d)
     plt.show()
 
 
@@ -101,7 +124,7 @@ def get_reward(row_index, column_index, depth_index):
     if feedback[row_index, column_index, depth_index, 0] == 0:
         return 0
     # pop
-    return np.exp(-movement)
+    return 1-movement
 
 
 
@@ -214,14 +237,15 @@ def get_feedback(episode):
 
 discount_factor = 1  # discount factor for future rewards
 learning_rate = 0.6
-epsilon = 0.3
+epsilon = 0.6
+balloon = np.zeros((N*2, N*2, N))
 
 def start(writer):
-    global q_table
+    global q_table, balloon, epsilon
     # run through 10 episodes
     reward_y = list(range(1, 11))
     episode_x = list(range(1, 11))
-    global epsilon
+
     for episode in range(10):
         # epsilon = epsilon*(1-(episode/100))
         episode_reward = 0
@@ -229,7 +253,7 @@ def start(writer):
         # get the starting location for this episode
         row_index, column_index, depth_index = get_starting_location()
         # for each episode, we train 100 times:
-        for batch in range(1000):
+        for batch in range(100):
 
             # # choose which action to take
             # # action_index, isRandom = get_next_action(row_index, column_index, depth_index, epsilon)
@@ -246,12 +270,15 @@ def start(writer):
 
             # receive the reward for moving to the new state, and calculate the temporal difference
             reward = get_reward(row_index, column_index, depth_index)
+
             old_q_value = q_table[old_row_index, old_column_index, old_depth_index, action_index]
             temporal_difference = reward + (discount_factor * np.max(q_table[row_index, column_index, depth_index])) - old_q_value
 
             # update the Q-value for the previous state and action pair
             new_q_value = (1-learning_rate)*old_q_value + (learning_rate * temporal_difference)
             q_table[old_row_index, old_column_index, old_depth_index, action_index] = new_q_value
+
+            balloon[row_index, column_index, depth_index] += 1
             episode_reward += reward
 
         epsilon = max(epsilon-0.1, 0.1)
@@ -260,7 +287,12 @@ def start(writer):
         print("reward for: " + str(episode) + "is: " + str(episode_reward))
         # plotModel()
         # q_table[5,7,2]
+        if episode == 2 or episode == 5 or episode == 8:
+            plotModelArg("Day " + str(episode+1), balloon, N * 2, N * 2, N)
     episodePlod(reward_y, episode_x)
+
+
+    balloon = np.zeros((N*2, N*2, N))
 
 
 # actions according to research book (0, 1, 2, 3, 4, 5)
