@@ -40,6 +40,11 @@ def plotModelArg(header, table, w, h, d):
     y = np.indices(table.shape)[1]
     z = np.indices(table.shape)[2]
     col = table.flatten()
+    sumb = 0
+    for num in col:
+        sumb += num
+
+    print(sumb)
     norm = np.linalg.norm(col)
     # col = col/norm
     # col = np.linalg.norm(col) - col
@@ -120,9 +125,9 @@ def get_reward(row_index, column_index, depth_index):
     movement += feedback[row_index, column_index, depth_index, 3]
     movement += feedback[row_index, column_index, depth_index, 4]
     movement /= 4
-    # didn't pop
+    # didn't pop / we should fine ture this - around 0.2-0.3?
     if feedback[row_index, column_index, depth_index, 0] == 0:
-        return 0
+        return 0.3
     # pop
     return 1-movement
 
@@ -149,11 +154,11 @@ def get_next_action(current_row_index, current_column_index, current_depth_index
     # actions according to research book (0, 1, 2, 3, 4, 5)
     # actions = ['up', 'down', 'right', 'left', 'forward', 'backward']
     #todo: dont select action that cant be made
-    Action_probabilities = np.ones(6,
-                                   dtype=float) * epsilon / 6
 
+    Action_probabilities = np.ones(6, dtype=float) * epsilon / 6
     best_action = np.argmax(q_table[current_row_index, current_column_index, current_depth_index])
     Action_probabilities[best_action] += (1.0 - epsilon)
+
     flag = 1
     while flag:
         action = np.random.choice(np.arange(len(Action_probabilities)), p=Action_probabilities)
@@ -235,17 +240,21 @@ def get_feedback(episode):
 
 # define training parameters
 
-discount_factor = 1  # discount factor for future rewards
+discount_factor = 1 # discount factor for future rewards
 learning_rate = 0.6
-epsilon = 0.6
-balloon = np.zeros((N*2, N*2, N))
+ExplorationRate = 10000
+epsilon = 0.9
+balloon_daily = np.zeros((N*2, N*2, N))
+balloon_total = np.zeros((N*2, N*2, N))
 
 def start(writer):
-    global q_table, balloon, epsilon
-    # run through 10 episodes
+    global q_table, balloon_daily, epsilon
+
     reward_y = list(range(1, 11))
     episode_x = list(range(1, 11))
-
+    total_reward = 0
+    total_actions = 0
+    # run through 10 episodes
     for episode in range(10):
         # epsilon = epsilon*(1-(episode/100))
         episode_reward = 0
@@ -267,6 +276,7 @@ def start(writer):
             # perform the chosen action, and transition to the next state (i.e., move to the next location)
             old_row_index, old_column_index, old_depth_index = row_index, column_index, depth_index  # store the old row and column indexes
             row_index, column_index, depth_index = get_next_location(row_index, column_index, depth_index, action_index)
+            total_actions += 1
 
             # receive the reward for moving to the new state, and calculate the temporal difference
             reward = get_reward(row_index, column_index, depth_index)
@@ -278,21 +288,25 @@ def start(writer):
             new_q_value = (1-learning_rate)*old_q_value + (learning_rate * temporal_difference)
             q_table[old_row_index, old_column_index, old_depth_index, action_index] = new_q_value
 
-            balloon[row_index, column_index, depth_index] += 1
+            balloon_daily[row_index, column_index, depth_index] += 1
+            balloon_total[row_index, column_index, depth_index] += 1
             episode_reward += reward
+            total_reward += reward
+            epsilon = max(min(ExplorationRate/(total_actions*total_reward), 0.9), 0.3)
 
-        epsilon = max(epsilon-0.1, 0.1)
+
+        # epsilon = max(epsilon-0.1, 0.3)
         # for each episode, learning_rate = learning_rate - learning_rate/10 ????
         reward_y[episode] = episode_reward
         print("reward for: " + str(episode) + "is: " + str(episode_reward))
         # plotModel()
         # q_table[5,7,2]
-        if episode == 2 or episode == 5 or episode == 8:
-            plotModelArg("Day " + str(episode+1), balloon, N * 2, N * 2, N)
+        # plotModelArg("Day " + str(episode+1), balloon_daily, N * 2, N * 2, N)
+        balloon_daily = np.zeros((N * 2, N * 2, N))
     episodePlod(reward_y, episode_x)
+    plotModelArg("Total balloons show", balloon_total, N * 2, N * 2, N)
 
 
-    balloon = np.zeros((N*2, N*2, N))
 
 
 # actions according to research book (0, 1, 2, 3, 4, 5)
@@ -313,6 +327,8 @@ def main():
 
     start(writer)
     plotModel()
+
+
 
 if __name__ == "__main__":
     main()
