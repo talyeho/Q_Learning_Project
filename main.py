@@ -4,6 +4,7 @@ import csv
 
 import matplotlib.pyplot as plt
 import numpy as np
+import time
 import math
 
 
@@ -246,14 +247,37 @@ ExplorationRate = 10000
 epsilon = 0.9
 balloon_daily = np.zeros((N*2, N*2, N))
 balloon_total = np.zeros((N*2, N*2, N))
+grade = 0
+
+def calcGrade(day, balloon_daily, epsilon, day_reward):
+    # calc based on expected area here
+    if day == 1 or day == 3:
+        return epsilon*day_reward/60.0 + (1-epsilon)*(balloon_daily[6][5][2]+balloon_daily[6][5][3]+
+                                                        balloon_daily[6][6][1]+balloon_daily[6][7][1]+
+                                                        balloon_daily[7][6][1]+balloon_daily[7][7][1])/100.0
+    elif day == 5:
+        return epsilon*day_reward/60.0 + (1-epsilon)*(balloon_daily[6][5][2]+balloon_daily[6][5][3]+
+                                                        balloon_daily[6][6][1]+balloon_daily[6][7][1]+
+                                                        balloon_daily[7][6][1]+balloon_daily[7][7][1]+
+                                                        balloon_daily[6][6][2] + balloon_daily[6][7][2] +
+                                                        balloon_daily[7][6][2] + balloon_daily[7][7][2] +
+                                                        balloon_daily[6][6][3] + balloon_daily[6][7][3] +
+                                                        balloon_daily[7][6][3] + balloon_daily[7][7][3])/100.0
+    else:
+        return epsilon*day_reward/60.0 + (1-epsilon)*(balloon_daily[6][6][2] + balloon_daily[6][7][2] +
+                                                        balloon_daily[7][6][2] + balloon_daily[7][7][2] +
+                                                        balloon_daily[6][6][3] + balloon_daily[6][7][3] +
+                                                        balloon_daily[7][6][3] + balloon_daily[7][7][3])/100.0
 
 def start(writer):
-    global q_table, balloon_daily, epsilon
+    global q_table, balloon_daily, epsilon, grade
 
     reward_y = list(range(1, 11))
     episode_x = list(range(1, 11))
     total_reward = 0
     total_actions = 0
+    last_reward = 0
+    grade = 0
     # run through 10 episodes
     for episode in range(10):
         # epsilon = epsilon*(1-(episode/100))
@@ -298,10 +322,13 @@ def start(writer):
         # epsilon = max(epsilon-0.1, 0.3)
         # for each episode, learning_rate = learning_rate - learning_rate/10 ????
         reward_y[episode] = episode_reward
-        print("reward for: " + str(episode) + "is: " + str(episode_reward))
+        # calc grade
+        if(episode+1 == 1 or episode+1 == 3 or episode+1 == 5 or episode+1 ==8):
+            grade += calcGrade(episode+1, balloon_daily, epsilon, episode_reward)
+        #print("reward for: " + str(episode) + "is: " + str(episode_reward))
         # plotModel()
         # q_table[5,7,2]
-        # plotModelArg("Day " + str(episode+1), balloon_daily, N * 2, N * 2, N)
+        plotModelArg("Day " + str(episode+1), balloon_daily, N * 2, N * 2, N)
         balloon_daily = np.zeros((N * 2, N * 2, N))
     episodePlod(reward_y, episode_x)
     plotModelArg("Total balloons show", balloon_total, N * 2, N * 2, N)
@@ -313,7 +340,7 @@ def start(writer):
 # actions = ['up', 'down', 'right', 'left', 'forward', 'backward']
 def main():
     writer = makeCsvFile()
-
+    grades = np.zeros((11, 11))
     for i in range(0, N*2):
         for j in range(0, N):
             q_table[0, i, j, 3] = -100
@@ -324,7 +351,32 @@ def main():
         for j in range(0, N*2):
             q_table[i, j, 0, 5] = -100
             q_table[i, j, N-1, 4] = -100
+    global discount_factor, learning_rate
 
+    # start_t = time.process_time()
+    # for LR in range(1, 11):
+    #     for DF in range(1, 11):
+    #         learning_rate = LR/10.0
+    #         discount_factor = DF/10.0
+    #         for i in range(100):
+    #             start(writer)
+    #             grades[LR][DF] += grade
+    #             print(i)
+    #         grades[LR][DF] /= 100
+    # print(time.process_time() - start_t)
+
+    # maxLR=0
+    # maxDF=0
+    # maxGrade=0
+    # for LR in range(1, 11):
+    #     for DF in range(1, 11):
+    #         if grades[LR][DF] > maxGrade:
+    #             maxLR = LR
+    #             maxDF = DF
+    #             maxGrade = grades[LR][DF]
+
+    learning_rate = 0.4
+    discount_factor = 1
     start(writer)
     plotModel()
 
